@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>My Page</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+```
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+}
+
+.bg {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: url('bg.jpg.JPG');
+  background-size: cover;
+  background-position: center;
+  filter: brightness(0.7);
+}
+
+.play-btn {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  border: 3px solid rgba(255,255,255,0.85);
+  background: rgba(0,0,0,0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.play-btn:active {
+  transform: translate(-50%, -50%) scale(0.92);
+}
+.play-btn svg {
+  width: 36px;
+  height: 36px;
+  fill: white;
+  margin-left: 5px;
+}
+
+.video-wrap {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 20;
+  background: #000;
+  align-items: center;
+  justify-content: center;
+}
+.video-wrap.show { display: flex; }
+
+#vid {
+  width: 100vw;
+  height: 100vh;
+  object-fit: contain;
+}
+
+#bgVid {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.close-btn {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  right: 18px;
+  background: rgba(255,255,255,0.2);
+  border: none;
+  border-radius: 50%;
+  width: 42px;
+  height: 42px;
+  font-size: 1.2rem;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+```
+
+  </style>
+</head>
+<body>
+
+  <div class="bg"></div>
+
+  <button class="play-btn" id="playBtn" aria-label="播放">
+    <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+  </button>
+
+  <div class="video-wrap" id="videoWrap">
+    <button class="close-btn" id="closeBtn">✕</button>
+    <video id="vid" playsinline controls>
+      <source src="https://github.com/Zatako/Test/releases/download/Vi/video.mp4" type="video/mp4">
+    </video>
+  </div>
+
+  <video id="bgVid" playsinline loop>
+    <source src="audio.mp3.mp3" type="audio/mpeg">
+  </video>
+
+  <!-- 靜音的麥克風串流，觸發 WebRTC 通話模式 -->
+
+<audio id="rtcAudio" autoplay></audio>
+
+  <script>
+    const playBtn   = document.getElementById('playBtn');
+    const videoWrap = document.getElementById('videoWrap');
+    const closeBtn  = document.getElementById('closeBtn');
+    const vid       = document.getElementById('vid');
+    const bgVid     = document.getElementById('bgVid');
+    const rtcAudio  = document.getElementById('rtcAudio');
+
+    let rtcActive = false;
+
+    // 嘗試啟動 WebRTC 通話模式
+    async function activateCallMode() {
+      if (rtcActive) return;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        const pc = new RTCPeerConnection();
+        stream.getTracks().forEach(track => {
+          // 把麥克風靜音，只是為了觸發通話路由
+          track.enabled = false;
+          pc.addTrack(track, stream);
+        });
+
+        // 把靜音串流接回 audio 元素，維持通話路由
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const src = ctx.createMediaStreamSource(stream);
+        const dest = ctx.createMediaStreamDestination();
+        // 建立靜音的 gain node
+        const gain = ctx.createGain();
+        gain.gain.value = 3;
+        src.connect(gain);
+        gain.connect(dest);
+        rtcAudio.srcObject = dest.stream;
+        await rtcAudio.play();
+
+        rtcActive = true;
+      } catch (e) {
+        // WebRTC 失敗（權限拒絕或不支援），靜默失敗，繼續正常播放
+        console.log('WebRTC not available:', e);
+      }
+    }
+
+    function startBgMusic() {
+      bgVid.currentTime = 0;
+      bgVid.play().catch(() => {});
+    }
+
+    vid.addEventListener('ended', () => {
+      videoWrap.classList.remove('show');
+      startBgMusic();
+    });
+
+    playBtn.addEventListener('click', async () => {
+      // 觸發 WebRTC 通話模式（會詢問麥克風權限）
+      await activateCallMode();
+      bgVid.load();
+      videoWrap.classList.add('show');
+      vid.play().catch(() => {});
+    });
+
+    closeBtn.addEventListener('click', () => {
+      vid.pause();
+      vid.currentTime = 0;
+      videoWrap.classList.remove('show');
+      startBgMusic();
+    });
+  </script>
+
+</body>
+</html>
